@@ -41,13 +41,13 @@ export interface StockRecord {
   ProjectID: string;
   FilledQty: number; 
   FilledAveragePrice: number;
-  ALL_DAY_VWAP: number; // 当日VWAP (日次ベンチマークとして使用)
+  ALL_DAY_VWAP: number; // 当日VWAP
   Date: string; 
-  cumulativeBenchmarkVWAP: number | null; // これはプロジェクト全体のベンチマークVWAPの推移
+  cumulativeBenchmarkVWAP: number | null; // プロジェクト期間の平均VWAPの推移 (P/L計算に使用)
   vwapPerformanceBps: number | null;
   cumulativeFilledAmount: number | null; 
   cumulativeFilledQty: number | null; 
-  dailyPL: number | null; // ADDED BACK: 日次評価P/L
+  dailyPL: number | null; // 日次評価P/L (ベンチマークとして cumulativeBenchmarkVWAP を使用)
 }
 
 export interface ProjectWithProgress extends Project {
@@ -56,10 +56,10 @@ export interface ProjectWithProgress extends Project {
   totalFilledQty?: number; 
   totalFilledAmount?: number; 
   tradedDaysCount?: number;
-  benchmarkVWAP: number | null; // プロジェクト全体のベンチマークVWAP
+  benchmarkVWAP: number | null; // パフォーマンス指標に表示するプロジェクト全体のベンチマークVWAP
   averageExecutionPrice: number | null;
   averageDailyShares: number | null;
-  // projectPL は今回は使用しない (dailyPL で各行に表示するため)
+  // projectPL は削除済み
 }
 
 export interface ProjectDetailApiResponse {

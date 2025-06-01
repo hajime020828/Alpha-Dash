@@ -35,11 +35,15 @@ const ProjectDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [currentMarketPrice, setCurrentMarketPrice] = useState<number | null>(null);
+  const [marketPriceLoading, setMarketPriceLoading] = useState<boolean>(false);
+  const [marketPriceError, setMarketPriceError] = useState<string | null>(null);
+
   useEffect(() => {
     if (projectID && typeof projectID === 'string') {
       const fetchProjectDetails = async () => {
+        setLoading(true); 
         try {
-          setLoading(true);
           const res = await fetch(`/api/projects/${projectID}`);
           if (!res.ok) {
             const errorData = await res.json().catch(() => ({}));
@@ -65,7 +69,41 @@ const ProjectDetailPage = () => {
     }
   }, [projectID, router.isReady]);
 
-  if (loading) return <p className="text-center text-gray-500">プロジェクト詳細を読み込み中...</p>;
+  useEffect(() => {
+    if (data?.project && data.project.Ticker) { 
+        const ticker = data.project.Ticker;
+        const fetchMarketPrice = async () => {
+            setMarketPriceLoading(true);
+            setMarketPriceError(null);
+            setCurrentMarketPrice(null); 
+            try {
+                const res = await fetch(`/api/fetch-market-price?ticker=${encodeURIComponent(ticker)}`);
+                if (!res.ok) {
+                    const errorData = await res.json().catch(() => ({ error: "Unknown error fetching market price" }));
+                    throw new Error(errorData.error || `Failed to fetch market price: ${res.statusText}`);
+                }
+                const priceData = await res.json();
+                if (priceData.price !== undefined) { 
+                    setCurrentMarketPrice(priceData.price);
+                } else if (priceData.error) {
+                    throw new Error(priceData.error);
+                } else {
+                    throw new Error("Invalid response format for market price");
+                }
+            } catch (e: any) {
+                console.error("Failed to fetch market price for ticker:", ticker, e);
+                setMarketPriceError(e.message);
+                setCurrentMarketPrice(null);
+            } finally {
+                setMarketPriceLoading(false);
+            }
+        };
+        fetchMarketPrice();
+    }
+  }, [data?.project?.Ticker]); 
+
+
+  if (loading && !data) return <p className="text-center text-gray-500">プロジェクト詳細を読み込み中...</p>;
   if (error) return <p className="text-center text-red-500">エラー: {error}</p>;
   if (!data || !data.project) return <p className="text-center text-gray-500">プロジェクトデータが見つかりません。</p>;
 
@@ -74,6 +112,12 @@ const ProjectDetailPage = () => {
 
   const formatNumber = (value: number | null | undefined, fracDigits = 2, defaultVal: string = 'N/A') => {
     if (value === null || value === undefined) return defaultVal;
+    if (fracDigits === 0) {
+        return Math.round(value).toLocaleString('ja-JP', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+        });
+    }
     return value.toLocaleString('ja-JP', { 
       minimumFractionDigits: fracDigits, 
       maximumFractionDigits: fracDigits 
@@ -238,9 +282,51 @@ const ProjectDetailPage = () => {
     }
   };
 
+  let remainingShares: number | null = null;
+  if (typeof project.Total_Shares === 'number') {
+    remainingShares = Math.max(0, project.Total_Shares - (project.totalFilledQty || 0));
+  }
+
+  let daysUntilEarliest: number | null = null;
+  const tradedDays = project.tradedDaysCount || 0;
+  if (typeof project.Earliest_Day_Count === 'number') {
+    const diff = project.Earliest_Day_Count - tradedDays;
+    daysUntilEarliest = diff;
+  }
+
+  let remainingBusinessDays: number | null = null;
+  if (typeof project.Business_Days === 'number') {
+    const diff = project.Business_Days - tradedDays;
+    remainingBusinessDays = diff;
+  }
+
+  let maxSharesPerDayText: string = 'N/A';
+  if (remainingShares !== null) {
+    if (remainingShares === 0) {
+      maxSharesPerDayText = '0 株/日';
+    } else if (daysUntilEarliest !== null && daysUntilEarliest > 0) {
+      const maxShares = remainingShares / daysUntilEarliest;
+      maxSharesPerDayText = formatNumber(maxShares, 0) + ' 株/日';
+    } else if (daysUntilEarliest !== null && daysUntilEarliest <= 0) {
+      maxSharesPerDayText = '最短期限超過';
+    }
+  }
+  
+  let minSharesPerDayText: string = 'N/A';
+  if (remainingShares !== null) {
+    if (remainingShares === 0) {
+      minSharesPerDayText = '0 株/日';
+    } else if (remainingBusinessDays !== null && remainingBusinessDays > 0) {
+      const minShares = remainingShares / remainingBusinessDays;
+      minSharesPerDayText = formatNumber(minShares, 0) + ' 株/日';
+    } else if (remainingBusinessDays !== null && remainingBusinessDays <= 0) {
+      minSharesPerDayText = '残日数なし';
+    }
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-start">
+      <div className="flex justify-between items-start mb-6">
         <h1 className="text-3xl font-bold text-gray-800">
           プロジェクト詳細: {project.Name} ({project.ProjectID || `Internal ID: ${project.internal_id}`})
         </h1>
@@ -250,7 +336,42 @@ const ProjectDetailPage = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+      <div className="bg-white shadow-md rounded-lg p-6">
+         <h2 className="text-xl font-semibold mb-4 text-gray-700">基本情報</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 text-sm">
+          <p><strong>銘柄コード:</strong> {project.Ticker}</p>
+          <p><strong>銘柄名:</strong> {project.Name}</p>
+          <p><strong>Side:</strong>
+            <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-semibold
+              ${project.Side === 'BUY' ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'}`}>
+              {project.Side}
+            </span>
+          </p>
+          {project.Side === 'SELL' ? (
+            <p><strong>総株数:</strong> {formatNumber(project.Total_Shares, 0) ?? 'N/A'} 株</p>
+          ) : (
+            <p><strong>総金額:</strong> {formatCurrency(project.Total_Amount) ?? 'N/A'}</p>
+          )}
+          <p><strong>開始日:</strong> {project.Start_Date}</p>
+          <p><strong>終了日:</strong> {project.End_Date}</p>
+          <p><strong>価格制限:</strong> {formatNumber(project.Price_Limit, 0) ?? 'N/A'}</p>
+          <p><strong>業績連動手数料率:</strong> {project.Performance_Based_Fee_Rate ?? 'N/A'}%</p>
+          <p><strong>固定手数料率:</strong> {project.Fixed_Fee_Rate ?? 'N/A'}%</p>
+          <p><strong>営業日数 (Business Days):</strong> {project.Business_Days ?? 'N/A'}</p>
+          <p><strong>最短日数カウント:</strong> {project.Earliest_Day_Count ?? 'N/A'}</p>
+          <p><strong>除外日数:</strong> {formatNumber(project.Excluded_Days, 0) ?? 'N/A'}</p> 
+          <p><strong>最大株数/日:</strong> {maxSharesPerDayText}</p>
+          <p><strong>最小株数/日:</strong> {minSharesPerDayText}</p>
+          <p><strong>現在の株価:</strong> 
+            {marketPriceLoading ? <span className="text-gray-500">読み込み中...</span> : 
+             currentMarketPrice !== null ? formatNumber(currentMarketPrice, 2) : 
+             marketPriceError ? <span className="text-red-500">エラー ({marketPriceError})</span> : 'N/A'}
+          </p>
+          <p className="md:col-span-2"><strong>メモ:</strong> {project.Note || 'N/A'}</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <ProgressBarDetail
             label="経過日数進捗"
             progress={project.daysProgress}
@@ -269,7 +390,7 @@ const ProjectDetailPage = () => {
         />
       </div>
 
-      <div className="bg-white shadow-lg rounded-lg p-6 mb-6">
+      <div className="bg-white shadow-lg rounded-lg p-6">
         <h2 className="text-xl font-semibold text-gray-700 mb-4 border-b pb-2">パフォーマンス指標</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-center"> 
           <div>
@@ -301,34 +422,6 @@ const ProjectDetailPage = () => {
             </p>
         )}
       </div>
-
-      <div className="bg-white shadow-md rounded-lg p-6">
-         <h2 className="text-xl font-semibold mb-4 text-gray-700">基本情報</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-          <p><strong>銘柄コード:</strong> {project.Ticker}</p>
-          <p><strong>銘柄名:</strong> {project.Name}</p>
-          <p><strong>Side:</strong>
-            <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-semibold
-              ${project.Side === 'BUY' ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'}`}>
-              {project.Side}
-            </span>
-          </p>
-          {project.Side === 'SELL' ? (
-            <p><strong>総株数:</strong> {formatNumber(project.Total_Shares, 0) ?? 'N/A'} 株</p>
-          ) : (
-            <p><strong>総金額:</strong> {formatCurrency(project.Total_Amount) ?? 'N/A'}</p>
-          )}
-          <p><strong>開始日:</strong> {project.Start_Date}</p>
-          <p><strong>終了日:</strong> {project.End_Date}</p>
-          <p><strong>価格制限:</strong> {formatNumber(project.Price_Limit, 0) ?? 'N/A'}</p>
-          <p><strong>業績連動手数料率:</strong> {project.Performance_Based_Fee_Rate ?? 'N/A'}%</p>
-          <p><strong>固定手数料率:</strong> {project.Fixed_Fee_Rate ?? 'N/A'}%</p>
-          <p><strong>営業日数 (Business Days):</strong> {project.Business_Days ?? 'N/A'}</p>
-          <p><strong>最短日数カウント:</strong> {project.Earliest_Day_Count ?? 'N/A'}</p>
-          <p><strong>除外日数:</strong> {formatNumber(project.Excluded_Days, 0) ?? 'N/A'}</p> 
-          <p><strong>メモ:</strong> {project.Note || 'N/A'}</p>
-        </div>
-      </div>
       
       {stockRecords && stockRecords.length > 0 && (
         <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
@@ -339,7 +432,7 @@ const ProjectDetailPage = () => {
       )}
 
       {stockRecords && stockRecords.length > 0 ? (
-        <div className="bg-white shadow-md rounded-lg mt-6">
+        <div className="bg-white shadow-md rounded-lg">
           <h2 className="text-xl font-semibold p-6 text-gray-700 border-b">取引履歴</h2>
           <div className="overflow-x-auto">
             <table className="min-w-full leading-normal">
@@ -352,7 +445,7 @@ const ProjectDetailPage = () => {
                   <th className="py-3 px-6 text-right">当日VWAP</th>
                   <th className="py-3 px-6 text-right">ベンチマーク推移</th>
                   <th className="py-3 px-6 text-right">VWAP Perf. (bps)</th>
-                  <th className="py-3 px-6 text-right">P/L (評価損益)</th> {/* ADDED HEADER */}
+                  <th className="py-3 px-6 text-right">P/L (評価損益)</th>
                   <th className="py-3 px-6 text-right">累積約定金額(円)</th>
                 </tr>
               </thead>
@@ -370,7 +463,7 @@ const ProjectDetailPage = () => {
                     <td className="py-3 px-6 text-right">
                       {formatNumber(record.vwapPerformanceBps, 1, '-')}
                     </td>
-                    <td className={`py-3 px-6 text-right ${record.dailyPL !== null && record.dailyPL >= 0 ? 'text-green-600' : 'text-red-600'}`}> {/* ADDED CELL */}
+                    <td className={`py-3 px-6 text-right ${record.dailyPL !== null && record.dailyPL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                       {formatCurrency(record.dailyPL, '-')}
                     </td>
                     <td className="py-3 px-6 text-right">

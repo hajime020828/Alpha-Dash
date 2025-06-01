@@ -1,7 +1,7 @@
 // pages/index.tsx
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import type { ProjectWithProgress } from '../lib/db';
+import type { ProjectWithProgress } from '@/lib/db'; // Path alias を使用
 
 const HomePage = () => {
   const [projects, setProjects] = useState<ProjectWithProgress[]>([]);

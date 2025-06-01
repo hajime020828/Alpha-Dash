@@ -52,7 +52,6 @@ export default async function handler(
         sumOfDistinctVWAPsForBenchmark += recordAllDayVWAP;
         countOfDistinctDaysForBenchmark++;
       }
-      // この日までのプロジェクト期間全体のベンチマークVWAP（日々のVWAPの単純平均の推移）
       const currentProjectBenchmarkVWAP = (countOfDistinctDaysForBenchmark > 0) 
         ? (sumOfDistinctVWAPsForBenchmark / countOfDistinctDaysForBenchmark)
         : null;
@@ -78,18 +77,14 @@ export default async function handler(
       const recordCumulativeFilledQty = currentCumulativeFilledQty;
       const recordCumulativeFilledAmount = currentCumulativeFilledAmount;
 
-      // --- P/L計算 (ベンチマーク変更) ---
-      // このP/Lは、その日までの全取引を、「その日までのプロジェクトベンチマークVWAPの平均」で評価した場合の損益
       let dailyPL: number | null = null;
-      if (currentProjectBenchmarkVWAP != null && // 当日VWAPではなく、累積プロジェクトベンチマークを使用
+      if (currentProjectBenchmarkVWAP != null && 
           recordCumulativeFilledQty > 0 && 
           recordCumulativeFilledAmount != null &&
           (projectData.Side === 'BUY' || projectData.Side === 'SELL') ) {
         if (projectData.Side === 'BUY') {
-          // BUY: (プロジェクトベンチマークVWAP × 累積約定株数) - 累積約定金額
           dailyPL = (currentProjectBenchmarkVWAP * recordCumulativeFilledQty) - recordCumulativeFilledAmount;
-        } else { // SELL の場合
-          // SELL: 累積約定金額 - (プロジェクトベンチマークVWAP × 累積約定株数)
+        } else { 
           dailyPL = recordCumulativeFilledAmount - (currentProjectBenchmarkVWAP * recordCumulativeFilledQty);
         }
       } else if (recordCumulativeFilledQty === 0) {
@@ -103,7 +98,7 @@ export default async function handler(
         FilledAveragePrice: recordFilledAveragePrice !== null ? recordFilledAveragePrice : 0,
         ALL_DAY_VWAP: recordAllDayVWAP !== null ? recordAllDayVWAP : 0,
         Date: recordDate,
-        cumulativeBenchmarkVWAP: currentProjectBenchmarkVWAP, // これがP/L計算に使用されるベンチマーク
+        cumulativeBenchmarkVWAP: currentProjectBenchmarkVWAP,
         vwapPerformanceBps: vwapPerfBps,
         cumulativeFilledAmount: recordCumulativeFilledAmount,
         cumulativeFilledQty: recordCumulativeFilledQty,
@@ -131,7 +126,6 @@ export default async function handler(
       executionProgress = Math.min(100, Math.max(0, executionProgress));
     }
     
-    // プロジェクト全体の最終的なベンチマークVWAP
     const overallProjectBenchmarkVWAPToDisplay = (countOfDistinctDaysForBenchmark > 0)
         ? (sumOfDistinctVWAPsForBenchmark / countOfDistinctDaysForBenchmark)
         : null;
@@ -152,7 +146,7 @@ export default async function handler(
       totalFilledQty: finalTotalProjectFilledQty,
       totalFilledAmount: finalTotalProjectFilledAmount,
       tradedDaysCount: currentTradedDaysCount,
-      benchmarkVWAP: overallProjectBenchmarkVWAPToDisplay, // パフォーマンス指標に表示するVWAP
+      benchmarkVWAP: overallProjectBenchmarkVWAPToDisplay,
       averageExecutionPrice: averageExecutionPrice,
       averageDailyShares: averageDailyShares,
     };

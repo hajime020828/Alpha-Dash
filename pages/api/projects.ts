@@ -1,6 +1,6 @@
 // pages/api/projects.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getDb, Project, ProjectWithProgress } from '@/lib/db';
+import { getDb, Project, ProjectWithProgress } from '@/lib/db'; // Path alias を使用
 
 interface AggregatedStockData {
   ProjectID: string;
@@ -69,7 +69,6 @@ export default async function handler(
         benchmarkVWAP: null, 
         averageExecutionPrice: null,
         averageDailyShares: null,
-        // projectPL: null, // DELETED
       };
     });
 
