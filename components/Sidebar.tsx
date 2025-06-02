@@ -14,6 +14,13 @@ const Sidebar = () => {
               </a>
             </Link>
           </li>
+          <li>
+            <Link href="/database-management" legacyBehavior>
+              <a className="block py-2 px-3 rounded hover:bg-gray-700">
+                Database
+              </a>
+            </Link>
+          </li>
           {/* 今後他の項目が増えたらここに追加 */}
         </ul>
       </nav>

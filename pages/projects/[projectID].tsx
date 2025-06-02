@@ -38,6 +38,7 @@ const ProjectDetailPage = () => {
   const [currentMarketPrice, setCurrentMarketPrice] = useState<number | null>(null);
   const [marketPriceLoading, setMarketPriceLoading] = useState<boolean>(false);
   const [marketPriceError, setMarketPriceError] = useState<string | null>(null);
+  const [priceToAdjustedBenchmarkDeviation, setPriceToAdjustedBenchmarkDeviation] = useState<number | null>(null);
 
   useEffect(() => {
     if (projectID && typeof projectID === 'string') {
@@ -101,6 +102,44 @@ const ProjectDetailPage = () => {
         fetchMarketPrice();
     }
   }, [data?.project?.Ticker]); 
+
+  useEffect(() => {
+    if (currentMarketPrice !== null && data && data.project) {
+      const { benchmarkVWAP, tradedDaysCount, Side } = data.project;
+
+      let newAdjustedBenchmark: number | null = null;
+
+      // tradedDaysCount が undefined または null の場合、0として扱う
+      const currentTradedDaysCount = tradedDaysCount || 0;
+      
+      // benchmarkVWAP が null の場合、過去の合計は0として扱う
+      const historicalSum = (benchmarkVWAP !== null && currentTradedDaysCount > 0)
+                            ? benchmarkVWAP * currentTradedDaysCount
+                            : 0;
+
+      if (currentTradedDaysCount === 0) {
+        // 過去の取引がない場合、調整後ベンチマークは現在の株価そのもの
+        newAdjustedBenchmark = currentMarketPrice;
+      } else {
+      // 過去の取引がある場合、現在の株価を加えて平均を再計算
+        newAdjustedBenchmark = (historicalSum + currentMarketPrice) / (currentTradedDaysCount + 1);
+      }
+
+      if (newAdjustedBenchmark !== null && newAdjustedBenchmark !== 0) {
+        let deviation: number | null = null;
+        if (Side === 'SELL') {
+          deviation = ((currentMarketPrice - newAdjustedBenchmark) / newAdjustedBenchmark) * 100;
+        } else if (Side === 'BUY') { // BUY または未指定(デフォルトBUY扱い)
+          deviation = ((newAdjustedBenchmark - currentMarketPrice) / newAdjustedBenchmark) * 100;
+        }
+        setPriceToAdjustedBenchmarkDeviation(deviation);
+      } else {
+        setPriceToAdjustedBenchmarkDeviation(null);
+      }
+    } else {
+      setPriceToAdjustedBenchmarkDeviation(null);
+    }
+  }, [currentMarketPrice, data?.project]);
 
 
   if (loading && !data) return <p className="text-center text-gray-500">プロジェクト詳細を読み込み中...</p>;
@@ -367,6 +406,15 @@ const ProjectDetailPage = () => {
              currentMarketPrice !== null ? formatNumber(currentMarketPrice, 2) : 
              marketPriceError ? <span className="text-red-500">エラー ({marketPriceError})</span> : 'N/A'}
           </p>
+          <p><strong>対調整後ベンチマーク乖離率:</strong>
+            {marketPriceLoading ? <span className="text-xs text-gray-500">計算中...</span> :
+             currentMarketPrice === null ? <span className="text-xs text-gray-500">株価未取得</span> :
+             priceToAdjustedBenchmarkDeviation === null ? <span className="text-xs text-gray-500">計算不可</span> :
+             <span className={`font-semibold ${priceToAdjustedBenchmarkDeviation >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+               {formatNumber(priceToAdjustedBenchmarkDeviation, 2)} %
+             </span>
+            }
+          </p>
           <p className="md:col-span-2"><strong>メモ:</strong> {project.Note || 'N/A'}</p>
         </div>
       </div>
@@ -444,14 +492,17 @@ const ProjectDetailPage = () => {
                   <th className="py-3 px-6 text-right">約定平均価格</th>
                   <th className="py-3 px-6 text-right">当日VWAP</th>
                   <th className="py-3 px-6 text-right">ベンチマーク推移</th>
-                  <th className="py-3 px-6 text-right">VWAP Perf. (bps)</th>
+                  <th className="py-3 px-6 text-right">VWAP Perf. (%)</th>
                   <th className="py-3 px-6 text-right">P/L (評価損益)</th>
                   <th className="py-3 px-6 text-right">累積約定金額(円)</th>
                 </tr>
               </thead>
               <tbody className="text-gray-700 text-sm">
                 {displayStockRecords.map((record, index) => (
-                  <tr key={index} className="border-b border-gray-200 hover:bg-gray-100">
+                  <tr key={index} className={`border-b border-gray-200 hover:bg-gray-100 ${
+                    record.vwapPerformanceBps !== null && record.vwapPerformanceBps < 0 ? 'bg-red-50' : 
+                    record.vwapPerformanceBps !== null && record.vwapPerformanceBps > 0 ? 'bg-green-50' : ''
+                  }`}>
                     <td className="py-3 px-6 text-left whitespace-nowrap">{record.Date}</td>
                     <td className="py-3 px-6 text-right">{formatNumber(record.FilledQty, 0)}</td>
                     <td className="py-3 px-6 text-right">{formatNumber(record.cumulativeFilledQty, 0, '-')}</td>
@@ -461,7 +512,9 @@ const ProjectDetailPage = () => {
                       {formatNumber(record.cumulativeBenchmarkVWAP, 2, '-')}
                     </td>
                     <td className="py-3 px-6 text-right">
-                      {formatNumber(record.vwapPerformanceBps, 1, '-')}
+                      {record.vwapPerformanceBps !== null && record.vwapPerformanceBps !== undefined 
+                        ? `${formatNumber(record.vwapPerformanceBps / 100, 2, '-')} %` 
+                        : '-'}
                     </td>
                     <td className={`py-3 px-6 text-right ${record.dailyPL !== null && record.dailyPL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                       {formatCurrency(record.dailyPL, '-')}

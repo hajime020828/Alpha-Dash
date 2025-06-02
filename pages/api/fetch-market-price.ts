@@ -19,8 +19,8 @@ export default async function handler(
   }
 
   try {
-    // Python FlaskサービスのエンドポイントURL (ポート5001で実行されていると仮定)
-    const flaskApiUrl = `http://localhost:5001/api/current_price?ticker=${encodeURIComponent(ticker)}`;
+    // blpapi.pyのreference_dataエンドポイントを呼び出し、PX_LASTを取得
+    const flaskApiUrl = `http://localhost:5001/api/reference_data?ticker=${encodeURIComponent(ticker)}&fields=PX_LAST`;
     
     console.log(`Fetching market price from Flask API: ${flaskApiUrl}`);
     const marketPriceRes = await fetch(flaskApiUrl);
@@ -32,14 +32,22 @@ export default async function handler(
     }
 
     const data: any = await marketPriceRes.json(); // 型をanyにして柔軟に受け取る
-    console.log('Received data from Flask API:', data);
+    console.log('Received data from Flask API for market price:', data);
     
-    if (data && typeof data.price === 'number' && typeof data.ticker === 'string') { // レスポンスの型を検証
-        return res.status(200).json({ ticker: data.ticker, price: data.price });
-    } else if (data && typeof data.error === 'string') {
-        return res.status(404).json({ error: data.error });
+    // /api/reference_dataからの応答は配列形式 [{"security": "...", "PX_LAST": 123.45}]
+    if (Array.isArray(data) && data.length > 0) {
+      const securityData = data[0];
+      if (securityData && typeof securityData.PX_LAST === 'number' && typeof securityData.security === 'string') {
+        return res.status(200).json({ ticker: securityData.security, price: securityData.PX_LAST });
+      } else if (securityData && typeof securityData.PX_LAST === 'string' && securityData.PX_LAST.startsWith("Field Error:")) {
+        console.error(`Field error for ${ticker}: ${securityData.PX_LAST}`);
+        return res.status(404).json({ error: `PX_LAST not available for ${ticker}: ${securityData.PX_LAST}` });
+      } else if (securityData && securityData.securityError) {
+        return res.status(404).json({ error: securityData.securityError });
+      }
     } else {
-        return res.status(500).json({ error: "Unexpected response format from Flask API" });
+      console.error("Unexpected response format from Flask API or no data:", data);
+      return res.status(500).json({ error: "Unexpected response format from Flask API or no data found" });
     }
 
   } catch (error: any) {

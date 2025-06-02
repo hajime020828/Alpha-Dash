@@ -1,6 +1,6 @@
 // pages/api/projects/[projectID].ts
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getDb, Project, StockRecord, ProjectWithProgress, ProjectDetailApiResponse } from '@/lib/db';
+import { getDb, Project, StockRecord, ProjectWithProgress, ProjectDetailApiResponse } from '@/lib/db'; //
 
 export default async function handler(
   req: NextApiRequest,
@@ -27,10 +27,19 @@ export default async function handler(
 
     let rawStockRecords: Omit<StockRecord, 'cumulativeBenchmarkVWAP' | 'vwapPerformanceBps' | 'cumulativeFilledAmount' | 'cumulativeFilledQty' | 'dailyPL'>[] = [];
     if (projectData.ProjectID) {
+      // データベースからはひとまず取得
       rawStockRecords = await db.all<Omit<StockRecord, 'cumulativeBenchmarkVWAP' | 'vwapPerformanceBps' | 'cumulativeFilledAmount' | 'cumulativeFilledQty' | 'dailyPL'>[]>(
-        'SELECT * FROM stock_records WHERE ProjectID = ? ORDER BY Date ASC', 
+        'SELECT * FROM stock_records WHERE ProjectID = ?', // ORDER BY は削除またはDBの日付型に合わせて調整
         projectData.ProjectID
       );
+
+      // JavaScript側で日付オブジェクトに変換してソート (YYYY/MM/DD 形式を想定)
+      rawStockRecords.sort((a, b) => {
+        // 日付文字列を Date オブジェクトが解釈しやすいように '-' 区切りに置換
+        const dateA = new Date(a.Date.replace(/\//g, '-'));
+        const dateB = new Date(b.Date.replace(/\//g, '-'));
+        return dateA.getTime() - dateB.getTime();
+      });
     }
     
     const distinctDailyVWAPsEncountered = new Map<string, number>();
