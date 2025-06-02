@@ -25,15 +25,13 @@ export default async function handler(
         Note, TS_Contact
       }: Omit<Project, 'internal_id'> = req.body;
 
-      // 簡単なバリデーション (本来はもっと厳密に)
       if (!Ticker || !Name || !Side || !Start_Date || !End_Date || !TS_Contact) {
         return res.status(400).json({ error: 'Missing required fields for project' });
       }
       
-      // Total_Shares と Total_Amount は Side によってどちらかが null になることを考慮
-      const finalTotalShares = Side === 'SELL' ? (Total_Shares !== undefined && Total_Shares !== null ? Number(Total_Shares) : null) : null;
-      const finalTotalAmount = Side === 'BUY' ? (Total_Amount !== undefined && Total_Amount !== null ? Number(Total_Amount) : null) : null;
-
+      // 受け取った値をそのまま使うか、nullでなければ数値に変換
+      const finalTotalShares = (Total_Shares !== undefined && Total_Shares !== null) ? Number(Total_Shares) : null;
+      const finalTotalAmount = (Total_Amount !== undefined && Total_Amount !== null) ? Number(Total_Amount) : null;
 
       const stmt = await db.prepare(
         `INSERT INTO projects (
@@ -45,22 +43,17 @@ export default async function handler(
       );
       
       const result = await stmt.run(
-        ProjectID || null,
-        Ticker,
-        Name,
-        Side,
-        finalTotalShares,
-        finalTotalAmount,
-        Start_Date,
-        End_Date,
-        Price_Limit !== undefined && Price_Limit !== null ? Number(Price_Limit) : null,
-        Performance_Based_Fee_Rate !== undefined && Performance_Based_Fee_Rate !== null ? Number(Performance_Based_Fee_Rate) : null,
-        Fixed_Fee_Rate !== undefined && Fixed_Fee_Rate !== null ? Number(Fixed_Fee_Rate) : null,
-        Business_Days !== undefined && Business_Days !== null ? Number(Business_Days) : null,
-        Earliest_Day_Count !== undefined && Earliest_Day_Count !== null ? Number(Earliest_Day_Count) : null,
-        Excluded_Days !== undefined && Excluded_Days !== null ? Number(Excluded_Days) : null,
-        Note || null,
-        TS_Contact
+        ProjectID || null, Ticker, Name, Side,
+        finalTotalShares, 
+        finalTotalAmount, 
+        Start_Date, End_Date,
+        (Price_Limit !== undefined && Price_Limit !== null) ? Number(Price_Limit) : null,
+        (Performance_Based_Fee_Rate !== undefined && Performance_Based_Fee_Rate !== null) ? Number(Performance_Based_Fee_Rate) : null,
+        (Fixed_Fee_Rate !== undefined && Fixed_Fee_Rate !== null) ? Number(Fixed_Fee_Rate) : null,
+        (Business_Days !== undefined && Business_Days !== null) ? Number(Business_Days) : null,
+        (Earliest_Day_Count !== undefined && Earliest_Day_Count !== null) ? Number(Earliest_Day_Count) : null,
+        (Excluded_Days !== undefined && Excluded_Days !== null) ? Number(Excluded_Days) : null,
+        Note || null, TS_Contact
       );
       await stmt.finalize();
 
@@ -96,9 +89,8 @@ export default async function handler(
         return res.status(400).json({ error: 'Missing required fields for project update' });
       }
       
-      const finalTotalShares = Side === 'SELL' ? (Total_Shares !== undefined && Total_Shares !== null ? Number(Total_Shares) : null) : null;
-      const finalTotalAmount = Side === 'BUY' ? (Total_Amount !== undefined && Total_Amount !== null ? Number(Total_Amount) : null) : null;
-
+      const finalTotalShares = (Total_Shares !== undefined && Total_Shares !== null) ? Number(Total_Shares) : null;
+      const finalTotalAmount = (Total_Amount !== undefined && Total_Amount !== null) ? Number(Total_Amount) : null;
 
       const stmt = await db.prepare(
         `UPDATE projects SET
@@ -109,14 +101,16 @@ export default async function handler(
         WHERE internal_id = ?`
       );
       await stmt.run(
-        ProjectID || null, Ticker, Name, Side, finalTotalShares, finalTotalAmount,
+        ProjectID || null, Ticker, Name, Side,
+        finalTotalShares,
+        finalTotalAmount,
         Start_Date, End_Date, 
-        Price_Limit !== undefined && Price_Limit !== null ? Number(Price_Limit) : null,
-        Performance_Based_Fee_Rate !== undefined && Performance_Based_Fee_Rate !== null ? Number(Performance_Based_Fee_Rate) : null,
-        Fixed_Fee_Rate !== undefined && Fixed_Fee_Rate !== null ? Number(Fixed_Fee_Rate) : null,
-        Business_Days !== undefined && Business_Days !== null ? Number(Business_Days) : null,
-        Earliest_Day_Count !== undefined && Earliest_Day_Count !== null ? Number(Earliest_Day_Count) : null,
-        Excluded_Days !== undefined && Excluded_Days !== null ? Number(Excluded_Days) : null,
+        (Price_Limit !== undefined && Price_Limit !== null) ? Number(Price_Limit) : null,
+        (Performance_Based_Fee_Rate !== undefined && Performance_Based_Fee_Rate !== null) ? Number(Performance_Based_Fee_Rate) : null,
+        (Fixed_Fee_Rate !== undefined && Fixed_Fee_Rate !== null) ? Number(Fixed_Fee_Rate) : null,
+        (Business_Days !== undefined && Business_Days !== null) ? Number(Business_Days) : null,
+        (Earliest_Day_Count !== undefined && Earliest_Day_Count !== null) ? Number(Earliest_Day_Count) : null,
+        (Excluded_Days !== undefined && Excluded_Days !== null) ? Number(Excluded_Days) : null,
         Note || null, TS_Contact,
         internal_id
       );
@@ -137,7 +131,6 @@ export default async function handler(
     try {
       const { internal_id } = req.query; 
       if (!internal_id || typeof internal_id !== 'string') {
-        // internal_idは通常数値だが、queryパラメータは文字列なので、適切に扱う
         return res.status(400).json({ message: 'internal_id (as a query parameter) is required for deleting.' });
       }
       const numericInternalId = parseInt(internal_id, 10);

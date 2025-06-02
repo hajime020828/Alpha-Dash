@@ -1,6 +1,6 @@
 // components/db/EditProjectForm.tsx
 import { useState, FormEvent, useEffect } from 'react';
-import type { Project } from '@/lib/db';
+import type { Project } from '@/lib/db'; //
 
 interface EditProjectFormProps {
   project: Project;
@@ -15,29 +15,30 @@ const EditProjectForm: React.FC<EditProjectFormProps> = ({ project, onProjectUpd
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    setFormData(project); // 親から渡されたプロジェクトデータでフォームを初期化
+    setFormData(project); 
   }, [project]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
     let processedValue: string | number | null = value;
-    if (type === 'number') {
-      processedValue = value === '' ? null : parseFloat(value);
-    } else if (['Total_Shares', 'Total_Amount', 'Price_Limit', 'Performance_Based_Fee_Rate', 'Fixed_Fee_Rate', 'Business_Days', 'Earliest_Day_Count', 'Excluded_Days'].includes(name)) {
+
+    if (type === 'number' || 
+        ['Total_Shares', 'Total_Amount', 'Price_Limit', 
+         'Performance_Based_Fee_Rate', 'Fixed_Fee_Rate', 
+         'Business_Days', 'Earliest_Day_Count', 'Excluded_Days'].includes(name)) {
         processedValue = value === '' ? null : parseFloat(value);
     }
     setFormData(prev => ({ ...prev, [name]: processedValue }));
   };
   
-  const handleSideChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newSide = e.target.value as 'BUY' | 'SELL';
-    setFormData(prev => ({
-      ...prev,
-      Side: newSide,
-      Total_Shares: newSide === 'BUY' ? null : prev.Total_Shares,
-      Total_Amount: newSide === 'SELL' ? null : prev.Total_Amount,
-    }));
-  };
+  // Side変更時に他のフィールドをクリアするロジックは削除
+  // const handleSideChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+  //   const newSide = e.target.value as 'BUY' | 'SELL';
+  //   setFormData(prev => ({
+  //     ...prev,
+  //     Side: newSide,
+  //   }));
+  // };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -46,32 +47,25 @@ const EditProjectForm: React.FC<EditProjectFormProps> = ({ project, onProjectUpd
     setSuccess(null);
 
     const payload = { ...formData };
-     if (payload.Side === 'BUY') {
-        payload.Total_Shares = null;
-    } else {
-        payload.Total_Amount = null;
-    }
     (Object.keys(payload) as Array<keyof typeof payload>).forEach(key => {
         if (['Total_Shares', 'Total_Amount', 'Price_Limit', 'Performance_Based_Fee_Rate', 'Fixed_Fee_Rate', 'Business_Days', 'Earliest_Day_Count', 'Excluded_Days'].includes(key)) {
-            if (payload[key] === '') {
+            if (payload[key] === '' || payload[key] === undefined) {
                 (payload as any)[key] = null;
             } else if (payload[key] !== null && typeof payload[key] === 'string') {
-                 // 既に数値型になっている場合は何もしない
-                if(isNaN(parseFloat(payload[key] as string))) {
-                    (payload as any)[key] = null; // 数値に変換できない場合はnull
-                } else {
-                    (payload as any)[key] = parseFloat(payload[key] as string);
-                }
+                const numVal = parseFloat(payload[key] as string);
+                (payload as any)[key] = isNaN(numVal) ? null : numVal;
+            } else if (payload[key] !== null && typeof payload[key] === 'number' && isNaN(payload[key] as number)) {
+                 (payload as any)[key] = null;
             }
         }
     });
 
 
     try {
-      const res = await fetch(`/api/db/projects`, { // PUTリクエストなのでIDはボディに含める
+      const res = await fetch(`/api/db/projects`, { 
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payload), // internal_id も payload に含まれている
       });
       const resultData = await res.json();
       if (!res.ok) {
@@ -95,7 +89,6 @@ const EditProjectForm: React.FC<EditProjectFormProps> = ({ project, onProjectUpd
       {error && <p className="text-red-500 text-sm p-2 bg-red-50 rounded">{error}</p>}
       {success && <p className="text-green-500 text-sm p-2 bg-green-50 rounded">{success}</p>}
       
-      {/* AddProjectForm と同様の入力フィールド群。value は formData から取得 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label htmlFor={`edit_ProjectID_${project.internal_id}`} className={commonLabelClass}>Project ID (任意)</label>
@@ -111,23 +104,20 @@ const EditProjectForm: React.FC<EditProjectFormProps> = ({ project, onProjectUpd
         </div>
         <div>
           <label htmlFor={`edit_Side_${project.internal_id}`} className={commonLabelClass}>Side <span className="text-red-500">*</span></label>
-          <select name="Side" id={`edit_Side_${project.internal_id}`} value={formData.Side} onChange={handleSideChange} className={commonInputClass} required>
+          <select name="Side" id={`edit_Side_${project.internal_id}`} value={formData.Side} onChange={handleChange} className={commonInputClass} required>
             <option value="BUY">BUY</option>
             <option value="SELL">SELL</option>
           </select>
         </div>
-        {formData.Side === 'SELL' && (
-          <div>
-            <label htmlFor={`edit_Total_Shares_${project.internal_id}`} className={commonLabelClass}>総株数 (任意)</label>
-            <input type="number" name="Total_Shares" id={`edit_Total_Shares_${project.internal_id}`} value={formData.Total_Shares ?? ''} onChange={handleChange} className={commonInputClass} placeholder="例: 10000"/>
-          </div>
-        )}
-        {formData.Side === 'BUY' && (
-          <div>
-            <label htmlFor={`edit_Total_Amount_${project.internal_id}`} className={commonLabelClass}>総金額 (任意)</label>
-            <input type="number" name="Total_Amount" id={`edit_Total_Amount_${project.internal_id}`} value={formData.Total_Amount ?? ''} onChange={handleChange} className={commonInputClass} placeholder="例: 5000000"/>
-          </div>
-        )}
+        {/* Total_Shares と Total_Amount は常に表示 */}
+        <div>
+          <label htmlFor={`edit_Total_Shares_${project.internal_id}`} className={commonLabelClass}>総株数 (任意)</label>
+          <input type="number" name="Total_Shares" id={`edit_Total_Shares_${project.internal_id}`} value={formData.Total_Shares ?? ''} onChange={handleChange} className={commonInputClass} placeholder="例: 10000"/>
+        </div>
+        <div>
+          <label htmlFor={`edit_Total_Amount_${project.internal_id}`} className={commonLabelClass}>総金額 (任意)</label>
+          <input type="number" name="Total_Amount" id={`edit_Total_Amount_${project.internal_id}`} value={formData.Total_Amount ?? ''} onChange={handleChange} className={commonInputClass} placeholder="例: 5000000"/>
+        </div>
         <div>
           <label htmlFor={`edit_Start_Date_${project.internal_id}`} className={commonLabelClass}>開始日 <span className="text-red-500">*</span></label>
           <input type="date" name="Start_Date" id={`edit_Start_Date_${project.internal_id}`} value={formData.Start_Date} onChange={handleChange} className={commonInputClass} required />

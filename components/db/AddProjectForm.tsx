@@ -1,6 +1,6 @@
 // components/db/AddProjectForm.tsx
 import { useState, FormEvent } from 'react';
-import type { Project } from '@/lib/db';
+import type { Project } from '@/lib/db'; //
 
 interface AddProjectFormProps {
   onProjectAdded: (newProject: Project) => void;
@@ -33,27 +33,25 @@ const AddProjectForm: React.FC<AddProjectFormProps> = ({ onProjectAdded }) => {
     const { name, value, type } = e.target;
     
     let processedValue: string | number | null = value;
-    if (type === 'number') {
+    // For number inputs, convert empty string to null, otherwise parse as float
+    if (type === 'number' || 
+        ['Total_Shares', 'Total_Amount', 'Price_Limit', 
+         'Performance_Based_Fee_Rate', 'Fixed_Fee_Rate', 
+         'Business_Days', 'Earliest_Day_Count', 'Excluded_Days'].includes(name)) {
       processedValue = value === '' ? null : parseFloat(value);
-    } else if (name === 'Total_Shares' || name === 'Total_Amount' || name === 'Price_Limit' || 
-               name === 'Performance_Based_Fee_Rate' || name === 'Fixed_Fee_Rate' ||
-               name === 'Business_Days' || name === 'Earliest_Day_Count' || name === 'Excluded_Days') {
-      processedValue = value === '' ? null : parseFloat(value); // Allow empty string to become null for optional numbers
     }
-
 
     setFormData(prev => ({ ...prev, [name]: processedValue }));
   };
   
-  const handleSideChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newSide = e.target.value as 'BUY' | 'SELL';
-    setFormData(prev => ({
-      ...prev,
-      Side: newSide,
-      Total_Shares: newSide === 'BUY' ? null : prev.Total_Shares,
-      Total_Amount: newSide === 'SELL' ? null : prev.Total_Amount,
-    }));
-  };
+  // Side変更時に他のフィールドをクリアするロジックは削除 (両方存在しうるため)
+  // const handleSideChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+  //   const newSide = e.target.value as 'BUY' | 'SELL';
+  //   setFormData(prev => ({
+  //     ...prev,
+  //     Side: newSide,
+  //   }));
+  // };
 
 
   const handleSubmit = async (e: FormEvent) => {
@@ -62,20 +60,17 @@ const AddProjectForm: React.FC<AddProjectFormProps> = ({ onProjectAdded }) => {
     setError(null);
     setSuccess(null);
 
-    // Sideに応じた調整
     const payload = { ...formData };
-    if (payload.Side === 'BUY') {
-        payload.Total_Shares = null;
-    } else {
-        payload.Total_Amount = null;
-    }
     // Ensure optional number fields are correctly null or number
     (Object.keys(payload) as Array<keyof typeof payload>).forEach(key => {
         if (['Total_Shares', 'Total_Amount', 'Price_Limit', 'Performance_Based_Fee_Rate', 'Fixed_Fee_Rate', 'Business_Days', 'Earliest_Day_Count', 'Excluded_Days'].includes(key)) {
-            if (payload[key] === '') {
+            if (payload[key] === '' || payload[key] === undefined) { // Check for undefined as well
                 (payload as any)[key] = null;
             } else if (payload[key] !== null && typeof payload[key] === 'string') {
-                (payload as any)[key] = parseFloat(payload[key] as string);
+                const numVal = parseFloat(payload[key] as string);
+                (payload as any)[key] = isNaN(numVal) ? null : numVal; // If parsing fails, set to null
+            } else if (payload[key] !== null && typeof payload[key] === 'number' && isNaN(payload[key] as number)) {
+                 (payload as any)[key] = null; // if it's already NaN somehow
             }
         }
     });
@@ -92,9 +87,8 @@ const AddProjectForm: React.FC<AddProjectFormProps> = ({ onProjectAdded }) => {
         throw new Error(resultData.message || resultData.error || 'Failed to add project');
       }
       setSuccess('プロジェクトが正常に追加されました。');
-      onProjectAdded(resultData as Project); // APIは新しいプロジェクトオブジェクトを返す想定
-      // フォームをリセット
-      setFormData({
+      onProjectAdded(resultData as Project); 
+      setFormData({ // フォームリセット
         ProjectID: '', Ticker: '', Name: '', Side: 'BUY', Total_Shares: null, Total_Amount: null,
         Start_Date: '', End_Date: '', Price_Limit: null, Performance_Based_Fee_Rate: null,
         Fixed_Fee_Rate: null, Business_Days: null, Earliest_Day_Count: null, Excluded_Days: null,
@@ -131,23 +125,20 @@ const AddProjectForm: React.FC<AddProjectFormProps> = ({ onProjectAdded }) => {
         </div>
         <div>
           <label htmlFor="Side" className={commonLabelClass}>Side <span className="text-red-500">*</span></label>
-          <select name="Side" id="Side" value={formData.Side} onChange={handleSideChange} className={commonInputClass} required>
+          <select name="Side" id="Side" value={formData.Side} onChange={handleChange} className={commonInputClass} required>
             <option value="BUY">BUY</option>
             <option value="SELL">SELL</option>
           </select>
         </div>
-        {formData.Side === 'SELL' && (
-          <div>
-            <label htmlFor="Total_Shares" className={commonLabelClass}>総株数 (任意)</label>
-            <input type="number" name="Total_Shares" id="Total_Shares" value={formData.Total_Shares ?? ''} onChange={handleChange} className={commonInputClass} placeholder="例: 10000"/>
-          </div>
-        )}
-        {formData.Side === 'BUY' && (
-          <div>
-            <label htmlFor="Total_Amount" className={commonLabelClass}>総金額 (任意)</label>
-            <input type="number" name="Total_Amount" id="Total_Amount" value={formData.Total_Amount ?? ''} onChange={handleChange} className={commonInputClass} placeholder="例: 5000000"/>
-          </div>
-        )}
+        {/* Total_Shares と Total_Amount は常に表示 */}
+        <div>
+          <label htmlFor="Total_Shares" className={commonLabelClass}>総株数 (任意)</label>
+          <input type="number" name="Total_Shares" id="Total_Shares" value={formData.Total_Shares ?? ''} onChange={handleChange} className={commonInputClass} placeholder="例: 10000"/>
+        </div>
+        <div>
+          <label htmlFor="Total_Amount" className={commonLabelClass}>総金額 (任意)</label>
+          <input type="number" name="Total_Amount" id="Total_Amount" value={formData.Total_Amount ?? ''} onChange={handleChange} className={commonInputClass} placeholder="例: 5000000"/>
+        </div>
         <div>
           <label htmlFor="Start_Date" className={commonLabelClass}>開始日 <span className="text-red-500">*</span></label>
           <input type="date" name="Start_Date" id="Start_Date" value={formData.Start_Date} onChange={handleChange} className={commonInputClass} required />
