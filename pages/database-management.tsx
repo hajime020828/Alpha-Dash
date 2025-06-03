@@ -4,55 +4,51 @@ import ProjectsTableViewer from '@/components/db/ProjectsTableViewer';
 import StockRecordsTableViewer from '@/components/db/StockRecordsTableViewer';
 import AddProjectForm from '@/components/db/AddProjectForm';
 import AddStockRecordForm from '@/components/db/AddStockRecordForm';
-import type { Project, StockRecord } from '@/lib/db';
+import type { Project, StockRecord } from '@/lib/db'; //
 
 const DatabaseManagementPage = () => {
   const [selectedTable, setSelectedTable] = useState<'projects' | 'stock_records' | null>(null);
   const [showAddForm, setShowAddForm] = useState<'projects' | 'stock_records' | null>(null);
 
-  // ProjectsTableViewer や StockRecordsTableViewer が内部でデータを再フェッチするように
-  // このキーを変更することで再マウントをトリガーする
   const [projectsKey, setProjectsKey] = useState(Date.now());
   const [stockRecordsKey, setStockRecordsKey] = useState(Date.now());
   
-  const [allProjects, setAllProjects] = useState<Pick<Project, 'ProjectID' | 'Ticker'>[]>([]);
+  const [allProjectsForDropdown, setAllProjectsForDropdown] = useState<Pick<Project, 'ProjectID' | 'Ticker'>[]>([]);
 
 
-  // ProjectID選択用にプロジェクトリストを取得
   const fetchProjectListForDropdown = useCallback(async () => {
     try {
-      const res = await fetch('/api/db/projects');
+      const res = await fetch('/api/db/projects'); // Projects APIから取得
       if (res.ok) {
         const projectsData: Project[] = await res.json();
-        setAllProjects(projectsData.map(p => ({ ProjectID: p.ProjectID, Ticker: p.Ticker })));
+        setAllProjectsForDropdown(projectsData.map(p => ({ ProjectID: p.ProjectID, Ticker: p.Ticker })).filter(p => p.ProjectID)); // ProjectIDがnullでないもののみ
       } else {
         console.error('Failed to fetch project list for dropdown');
+        setAllProjectsForDropdown([]); // エラー時は空にする
       }
     } catch (error) {
       console.error('Error fetching project list:', error);
+      setAllProjectsForDropdown([]);
     }
   }, []);
 
   useEffect(() => {
-    if (selectedTable === 'stock_records' || showAddForm === 'stock_records') {
-        fetchProjectListForDropdown();
-    }
-  }, [selectedTable, showAddForm, fetchProjectListForDropdown]);
+    // ページ読み込み時またはテーブル選択変更時にプロジェクトリストを取得
+    fetchProjectListForDropdown();
+  }, [fetchProjectListForDropdown]); // selectedTableの変更時にも呼ぶなら依存配列に追加
 
 
   const handleProjectAdded = (newProject: Project) => {
     console.log('Project added:', newProject);
-    setShowAddForm(null); // フォームを閉じる
-    setProjectsKey(Date.now()); // ProjectsTableViewerを再レンダリングしてデータを更新
-    if (selectedTable === 'stock_records' || showAddForm === 'stock_records') { // ProjectIDリストも更新
-        fetchProjectListForDropdown();
-    }
+    setShowAddForm(null); 
+    setProjectsKey(Date.now()); 
+    fetchProjectListForDropdown(); // プロジェクト追加後にもリストを更新
   };
 
-  const handleRecordAdded = (newRecord: Pick<StockRecord, 'StockCycle' | 'ProjectID' | 'FilledQty' | 'FilledAveragePrice' | 'ALL_DAY_VWAP' | 'Date'>) => {
+  const handleRecordAdded = (newRecord: Pick<StockRecord, 'StockCycle' | 'ProjectID' | 'FilledQty' | 'FilledAveragePrice' | 'ALL_DAY_VWAP' | 'Date'> & {rowid?: number}) => {
     console.log('Record added:', newRecord);
-    setShowAddForm(null); // フォームを閉じる
-    setStockRecordsKey(Date.now()); // StockRecordsTableViewerを再レンダリング
+    setShowAddForm(null); 
+    setStockRecordsKey(Date.now()); 
   };
 
   return (
@@ -68,7 +64,7 @@ const DatabaseManagementPage = () => {
           value={selectedTable || ''}
           onChange={(e) => {
             setSelectedTable(e.target.value as 'projects' | 'stock_records' | null);
-            setShowAddForm(null); // テーブル選択変更時は追加フォームを閉じる
+            setShowAddForm(null); 
           }}
           className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
         >
@@ -78,7 +74,6 @@ const DatabaseManagementPage = () => {
         </select>
       </div>
 
-      {/* データ追加ボタンとフォーム表示エリア */}
       {selectedTable && !showAddForm && (
         <div className="my-4">
           <button
@@ -91,35 +86,34 @@ const DatabaseManagementPage = () => {
       )}
 
       {showAddForm === 'projects' && (
-        <div className="my-6">
+        <div className="my-6 p-4 border rounded-md bg-gray-50 shadow">
           <AddProjectForm onProjectAdded={handleProjectAdded} />
-          <button onClick={() => setShowAddForm(null)} className="mt-2 text-sm text-gray-600 hover:text-gray-800">キャンセル</button>
+          <button onClick={() => setShowAddForm(null)} className="mt-4 text-sm text-indigo-600 hover:text-indigo-800">キャンセル</button>
         </div>
       )}
       {showAddForm === 'stock_records' && (
-        <div className="my-6">
-          <AddStockRecordForm onRecordAdded={handleRecordAdded} projects={allProjects} />
-          <button onClick={() => setShowAddForm(null)} className="mt-2 text-sm text-gray-600 hover:text-gray-800">キャンセル</button>
+        <div className="my-6 p-4 border rounded-md bg-gray-50 shadow">
+          <AddStockRecordForm onRecordAdded={handleRecordAdded} projects={allProjectsForDropdown} />
+          <button onClick={() => setShowAddForm(null)} className="mt-4 text-sm text-indigo-600 hover:text-indigo-800">キャンセル</button>
         </div>
       )}
 
 
-      {/* テーブル表示エリア */}
       {selectedTable === 'projects' && !showAddForm && (
         <div>
           <h2 className="text-2xl font-semibold text-gray-700 mb-3">Projects テーブル</h2>
-          <ProjectsTableViewer key={projectsKey} /> {/* key を渡して再マウントをトリガー */}
+          <ProjectsTableViewer key={projectsKey} /> 
         </div>
       )}
 
       {selectedTable === 'stock_records' && !showAddForm && (
         <div>
           <h2 className="text-2xl font-semibold text-gray-700 mb-3">Stock Records テーブル</h2>
-          <StockRecordsTableViewer key={stockRecordsKey} /> {/* key を渡して再マウントをトリガー */}
+          <StockRecordsTableViewer key={stockRecordsKey} projectsForDropdown={allProjectsForDropdown} /> 
         </div>
       )}
        <p className="mt-6 p-4 bg-yellow-100 text-yellow-700 rounded-md text-sm">
-        注意: 現在、表示と追加機能のみです。編集・削除機能は開発中です。データのバリデーションも基本的なもののみとなっています。
+        注意: データのバリデーションは基本的なもののみとなっています。
       </p>
     </div>
   );

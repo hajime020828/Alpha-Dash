@@ -1,28 +1,22 @@
 // pages/api/db/stock_records.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getDb, StockRecord } from '@/lib/db';
+import { getDb, StockRecord } from '@/lib/db'; //
 
-interface StockRecordForDisplay extends Pick<StockRecord, 'StockCycle' | 'ProjectID' | 'FilledQty' | 'FilledAveragePrice' | 'ALL_DAY_VWAP' | 'Date'> {
-  // rowid?: number;
+interface StockRecordForApi extends Pick<StockRecord, 'StockCycle' | 'ProjectID' | 'FilledQty' | 'FilledAveragePrice' | 'ALL_DAY_VWAP' | 'Date'> {
+  rowid?: number; // ROWIDをAPIインターフェースに追加
 }
-
-// API応答用に、挿入成功時に返すデータの型 (基本フィールドのみ)
-interface InsertedStockRecord extends StockRecordForDisplay {
-  // 必要であればROWIDも返す
-  // rowid: number;
-}
-
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<StockRecordForDisplay[] | InsertedStockRecord | { message: string } | { error: string }>
+  res: NextApiResponse<StockRecordForApi[] | StockRecordForApi | { message: string } | { error: string }>
 ) {
   const db = await getDb();
 
   if (req.method === 'GET') {
     try {
-      const records = await db.all<StockRecordForDisplay[]>(
-        'SELECT StockCycle, ProjectID, FilledQty, FilledAveragePrice, ALL_DAY_VWAP, Date FROM stock_records ORDER BY Date DESC, ProjectID ASC'
+      // ROWIDも一緒に取得するように変更
+      const records = await db.all<StockRecordForApi[]>(
+        'SELECT ROWID as rowid, StockCycle, ProjectID, FilledQty, FilledAveragePrice, ALL_DAY_VWAP, Date FROM stock_records ORDER BY Date DESC, ProjectID ASC'
       );
       res.status(200).json(records);
     } catch (error: any) {
@@ -33,9 +27,8 @@ export default async function handler(
     try {
       const {
         StockCycle, ProjectID, FilledQty, FilledAveragePrice, ALL_DAY_VWAP, Date
-      }: StockRecordForDisplay = req.body;
+      }: StockRecordForApi = req.body;
 
-      // 簡単なバリデーション
       if (!ProjectID || !Date || FilledQty === undefined || FilledAveragePrice === undefined || ALL_DAY_VWAP === undefined) {
         return res.status(400).json({ error: 'Missing required fields for stock record' });
       }
@@ -46,39 +39,92 @@ export default async function handler(
         ) VALUES (?, ?, ?, ?, ?, ?)`
       );
       
-      // データベースのスキーマに合わせて型変換
       const result = await stmt.run(
-        StockCycle || null,
-        ProjectID,
-        Number(FilledQty),
-        Number(FilledAveragePrice),
-        Number(ALL_DAY_VWAP),
-        Date
+        StockCycle || null, ProjectID, Number(FilledQty), Number(FilledAveragePrice), Number(ALL_DAY_VWAP), Date
       );
       await stmt.finalize();
 
-      // SQLiteでは lastID はROWIDを返す。複合主キーの場合、挿入された行を特定するには別の方法が必要になる場合がある。
-      // ここでは単純化のため、リクエストされたデータで新しいオブジェクトを返す。
-      if (result.changes && result.changes > 0) {
-         const insertedRecord: InsertedStockRecord = {
-            StockCycle: StockCycle || '', // DBでNULL許容でもフロントで表示するなら空文字など
-            ProjectID,
-            FilledQty: Number(FilledQty),
-            FilledAveragePrice: Number(FilledAveragePrice),
-            ALL_DAY_VWAP: Number(ALL_DAY_VWAP),
-            Date
-        };
-        res.status(201).json(insertedRecord);
+      if (result.lastID) { // lastIDはROWIDを返す
+         const newRecord = await db.get<StockRecordForApi>(
+           'SELECT ROWID as rowid, StockCycle, ProjectID, FilledQty, FilledAveragePrice, ALL_DAY_VWAP, Date FROM stock_records WHERE ROWID = ?',
+           result.lastID
+          );
+        if (newRecord) {
+            res.status(201).json(newRecord);
+        } else {
+            res.status(500).json({ message: 'Failed to retrieve the newly inserted stock record.'})
+        }
       } else {
-        res.status(500).json({ message: 'Failed to insert stock record, no changes detected' });
+        res.status(500).json({ message: 'Failed to insert stock record, no lastID returned' });
       }
-
     } catch (error: any) {
       console.error('Failed to insert stock record:', error);
       res.status(500).json({ message: `Failed to insert stock record: ${error.message}` });
     }
-  } else {
-    res.setHeader('Allow', ['GET', 'POST']);
+  } else if (req.method === 'PUT') {
+    try {
+        const {
+            rowid, StockCycle, ProjectID, FilledQty, FilledAveragePrice, ALL_DAY_VWAP, Date
+        }: StockRecordForApi = req.body;
+
+        if (rowid === undefined) {
+            return res.status(400).json({ error: 'rowid is required for updating stock record.' });
+        }
+        if (!ProjectID || !Date || FilledQty === undefined || FilledAveragePrice === undefined || ALL_DAY_VWAP === undefined) {
+            return res.status(400).json({ error: 'Missing required fields for stock record update.' });
+        }
+
+        const stmt = await db.prepare(
+            `UPDATE stock_records SET
+                StockCycle = ?, ProjectID = ?, FilledQty = ?, FilledAveragePrice = ?, ALL_DAY_VWAP = ?, Date = ?
+             WHERE ROWID = ?`
+        );
+        await stmt.run(
+            StockCycle || null, ProjectID, Number(FilledQty), Number(FilledAveragePrice), 
+            Number(ALL_DAY_VWAP), Date, rowid
+        );
+        await stmt.finalize();
+
+        const updatedRecord = await db.get<StockRecordForApi>(
+          'SELECT ROWID as rowid, StockCycle, ProjectID, FilledQty, FilledAveragePrice, ALL_DAY_VWAP, Date FROM stock_records WHERE ROWID = ?',
+           rowid
+        );
+        if (updatedRecord) {
+            res.status(200).json(updatedRecord);
+        } else {
+            res.status(404).json({ message: `Stock record with rowid ${rowid} not found after update.`})
+        }
+    } catch (error: any) {
+        console.error('Failed to update stock record:', error);
+        res.status(500).json({ message: `Failed to update stock record: ${error.message}` });
+    }
+  } else if (req.method === 'DELETE') {
+    try {
+        const { rowid } = req.query;
+        if (!rowid || typeof rowid !== 'string') {
+            return res.status(400).json({ message: 'rowid (as a query parameter) is required for deleting.' });
+        }
+        const numericRowId = parseInt(rowid, 10);
+        if (isNaN(numericRowId)) {
+            return res.status(400).json({ message: 'rowid must be a valid number.'});
+        }
+
+        const stmt = await db.prepare('DELETE FROM stock_records WHERE ROWID = ?');
+        const result = await stmt.run(numericRowId);
+        await stmt.finalize();
+
+        if (result.changes && result.changes > 0) {
+            res.status(200).json({ message: `Stock record with rowid ${numericRowId} deleted successfully.`});
+        } else {
+            res.status(404).json({ message: `Stock record with rowid ${numericRowId} not found or not deleted.`});
+        }
+    } catch (error: any) {
+        console.error('Failed to delete stock record:', error);
+        res.status(500).json({ message: `Failed to delete stock record: ${error.message}`});
+    }
+  }
+  else {
+    res.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
     res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 }
