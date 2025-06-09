@@ -50,8 +50,8 @@ const ProjectDetailPage = () => {
   const [marketPriceError, setMarketPriceError] = useState<string | null>(null);
   const [priceToAdjustedBenchmarkDeviation, setPriceToAdjustedBenchmarkDeviation] = useState<number | null>(null);
 
-  const [simInputPrice, setSimInputPrice] = useState<string>(''); // 初期値を空に
-  const [simInputShares, setSimInputShares] = useState<string>(''); // 初期値を空に
+  const [simInputPrice, setSimInputPrice] = useState<string>('');
+  const [simInputShares, setSimInputShares] = useState<string>('');
   const [simInputDays, setSimInputDays] = useState<string>('5');
   
   const [futureScenarios, setFutureScenarios] = useState<FutureScenario[]>([]);
@@ -139,27 +139,18 @@ const ProjectDetailPage = () => {
     }
   }, [currentMarketPrice, data?.project]);
 
-  // シミュレーション入力のデフォルト値を設定
   useEffect(() => {
-    if (data?.project && data.stockRecords && data.stockRecords.length > 0) {
-        const lastRecord = data.stockRecords[data.stockRecords.length - 1];
-        if (simInputPrice === '' && lastRecord && typeof lastRecord.FilledAveragePrice === 'number') {
-            setSimInputPrice(lastRecord.FilledAveragePrice.toString());
-        }
-        if (simInputShares === '' && lastRecord && typeof lastRecord.FilledQty === 'number') {
-            setSimInputShares(lastRecord.FilledQty.toString());
-        }
-    } else if (data?.project) {
-        // 履歴がないがプロジェクトデータはある場合、固定のデフォルト値などを設定可能
-        if (simInputPrice === '') {
-            // setSimInputPrice('100'); // 例: 固定のデフォルト価格
-        }
-        if (simInputShares === '') {
-            // setSimInputShares('1000'); // 例: 固定のデフォルト株数
+    if (data?.project) {
+        if (data.stockRecords && data.stockRecords.length > 0) {
+            const lastRecord = data.stockRecords[data.stockRecords.length - 1];
+            setSimInputPrice(prev => prev || (lastRecord?.FilledAveragePrice?.toString() ?? ''));
+            setSimInputShares(prev => prev || (lastRecord?.FilledQty?.toString() ?? ''));
+        } else {
+            setSimInputPrice(prev => prev || '');
+            setSimInputShares(prev => prev || '');
         }
     }
-  }, [data, simInputPrice, simInputShares]);
-
+  }, [data]);
 
   const formatNumber = (value: number | null | undefined, fracDigits = 2, defaultVal: string = 'N/A') => {
     if (value === null || value === undefined) return defaultVal;
@@ -264,10 +255,8 @@ const ProjectDetailPage = () => {
     let chartQtyData: (number | null)[] = [...baseQtyData];
 
     if (numPriceForChart !== null || (numSharesForChart !== null && numSharesForChart !== 0) ) {
-        let labelPushed = false;
-        if(numPriceForChart !== null || (numSharesForChart !== null && numSharesForChart > 0) ){
+        if(chartLabels.indexOf(simulatedDateLabel) === -1) {
             chartLabels.push(simulatedDateLabel);
-            labelPushed = true;
         }
         chartAvgPriceData.push(numPriceForChart); 
         chartDailyVwapData.push(numPriceForChart); 
@@ -283,9 +272,6 @@ const ProjectDetailPage = () => {
         }
         chartBenchmarkTrendData.push(benchmarkForSimulatedPoint);
         chartQtyData.push(numSharesForChart); 
-        if(!labelPushed && (chartAvgPriceData.length > baseAvgPriceData.length)){
-            chartLabels.push(simulatedDateLabel);
-        }
     }
     const toChartableData = (arr: (number | null)[]): number[] => arr.map(p => p === null ? NaN : p);
     return {
@@ -299,21 +285,15 @@ const ProjectDetailPage = () => {
     };
   }, [data?.project, data?.stockRecords, simInputPrice, simInputShares, simulatedDateLabel]);
 
-  const ProgressBarDetail = ({ progress, label, valueText, color = 'bg-blue-600', height = 'h-5' }: 
-    { progress: number, label:string, valueText:string, color?: string, height?: string }) => (
-    <div className="bg-white shadow-md rounded-lg p-4">
-        <h3 className="text-lg font-semibold text-gray-700 mb-1">{label}</h3>
-        <div className={`w-full bg-gray-200 rounded-full ${height} dark:bg-gray-700 overflow-hidden my-1 relative`}>
-            <div className={`${color} ${height} rounded-full text-xs font-medium text-white text-center p-0.5 leading-tight flex items-center justify-center`}
-                style={{ width: `${Math.max(0, Math.min(100, progress))}%` }}
-            >{progress.toFixed(1)}%</div>
-        </div>
-        <p className="text-xs text-gray-600 mt-1 text-right">{valueText}</p>
-    </div>
+  const ProgressBarDetail = ({ progress, label, valueText, color = 'bg-blue-600', height = 'h-5' }: { progress: number, label:string, valueText:string, color?: string, height?: string }) => (
+    <div className="bg-white shadow-md rounded-lg p-4"><h3 className="text-lg font-semibold text-gray-700 mb-1">{label}</h3><div className={`w-full bg-gray-200 rounded-full ${height} dark:bg-gray-700 overflow-hidden my-1 relative`}><div className={`${color} ${height} rounded-full text-xs font-medium text-white text-center p-0.5 leading-tight flex items-center justify-center`} style={{ width: `${Math.max(0, Math.min(100, progress))}%` }}>{progress.toFixed(1)}%</div></div><p className="text-xs text-gray-600 mt-1 text-right">{valueText}</p></div>
   );
 
+  // ★★★ chartOptionsに maintainAspectRatio: false を追加 ★★★
   const chartOptions: any = { 
-    responsive: true, maintainAspectRatio: false, layout: { padding: { top: 20, bottom: 10, left: 10, right: 10 }},
+    responsive: true,
+    maintainAspectRatio: false, // ★★★ この行を追加 ★★★
+    layout: { padding: { top: 20, bottom: 10, left: 10, right: 20 }},
     plugins: {
       legend: { position: 'top' as const },
       title: { display: true, text: '価格・VWAP・ベンチマーク推移と約定数量', font: { size: 16 }, padding: { bottom: 20 } },
@@ -342,8 +322,7 @@ const ProjectDetailPage = () => {
   if (!data || !data.project) return <p className="text-center text-gray-500">プロジェクトデータが見つかりません。</p>;
 
   const { project, stockRecords } = data;
-  const stockRecordsForChartAndCumulativeCalcs = [...stockRecords];
-  const displayStockRecords = [...stockRecordsForChartAndCumulativeCalcs].reverse(); 
+  const displayStockRecords = [...stockRecords].reverse(); 
 
   const tradedDays = project.tradedDaysCount || 0;
   let daysUntilEarliest: number | null = null;
@@ -388,9 +367,9 @@ const ProjectDetailPage = () => {
   let dailySharesBreakdown: { dayCount: number; sharesPerDay: number }[] = [];
   const canCalculateBreakdown = effectiveRemainingTargetShares !== null && effectiveRemainingTargetShares > 0 && daysUntilEarliest !== null && daysUntilEarliest > 0 && remainingBusinessDays !== null && remainingBusinessDays >= daysUntilEarliest;
   if (canCalculateBreakdown) {
-    const sharesToDistribute = effectiveRemainingTargetShares as number; 
-    const startDay = daysUntilEarliest as number;
-    const endDay = remainingBusinessDays as number;
+    const sharesToDistribute = effectiveRemainingTargetShares; 
+    const startDay = daysUntilEarliest;
+    const endDay = remainingBusinessDays;
     for (let d = startDay; d <= endDay; d++) { 
         if (d > 0) dailySharesBreakdown.push({ dayCount: d, sharesPerDay: sharesToDistribute / d });
     }
@@ -433,74 +412,58 @@ const ProjectDetailPage = () => {
         )}
       </div>
       
-      <div className="bg-white shadow-md rounded-lg p-6"> {/* mt-6 を削除 (親の space-y-6 が間隔を管理) */}
+      <div className="bg-white shadow-md rounded-lg p-6">
         <h2 className="text-xl font-semibold text-gray-700 mb-4 border-b pb-2">シミュレーション &amp; 将来シナリオ分析</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 items-end">
             <div>
                 <label htmlFor="simInputPrice" className="block text-sm font-medium text-gray-700">取引価格 (固定)</label>
                 <input type="number" name="simInputPrice" id="simInputPrice" value={simInputPrice} onChange={(e) => setSimInputPrice(e.target.value)}
+                       onWheel={ e => (e.target as HTMLElement).blur() }
                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="例: 101.0"/>
             </div>
             <div>
                 <label htmlFor="simInputShares" className="block text-sm font-medium text-gray-700">対象株数</label>
                 <input type="number" name="simInputShares" id="simInputShares" value={simInputShares} onChange={(e) => setSimInputShares(e.target.value)}
+                       onWheel={ e => (e.target as HTMLElement).blur() }
                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="例: 10000"/>
             </div>
             <div>
                 <label htmlFor="simInputDays" className="block text-sm font-medium text-gray-700">完了までの最大日数 (シナリオ用)</label>
                 <input type="number" name="simInputDays" id="simInputDays" value={simInputDays} onChange={(e) => setSimInputDays(e.target.value)}
+                       onWheel={ e => (e.target as HTMLElement).blur() }
                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="例: 5" min="1"/>
             </div>
         </div>
-
+        
         {futureScenarios.length > 0 ? (
             <div className="overflow-x-auto">
                 <h3 className="text-md font-medium text-gray-700 mb-2">完了日数別シナリオ (入力株数をN日間で均等に取引)</h3>
                 <table className="min-w-full leading-normal text-sm">
                     <thead>
                         <tr className="bg-gray-100 text-gray-600 uppercase text-xs leading-normal">
-                            <th className="py-2 px-3 text-left">シナリオ(日数)</th>
-                            <th className="py-2 px-3 text-right">株数/日</th>
-                            <th className="py-2 px-3 text-right">最終ベンチマーク</th>
-                            <th className="py-2 px-3 text-right">入力価格vsベンチ(%)</th>
-                            <th className="py-2 px-3 text-right">最終P/L</th>
-                            <th className="py-2 px-3 text-right">最終P/L (bps)</th>
+                            <th className="py-2 px-3 text-left">シナリオ(日数)</th><th className="py-2 px-3 text-right">株数/日</th><th className="py-2 px-3 text-right">最終ベンチマーク</th>
+                            <th className="py-2 px-3 text-right">入力価格vsベンチ(%)</th><th className="py-2 px-3 text-right">最終P/L</th><th className="py-2 px-3 text-right">最終P/L (bps)</th>
                         </tr>
                     </thead>
                     <tbody className="text-gray-700">
                         {futureScenarios.map((scenario) => (
                             <tr key={scenario.days} className="border-b border-gray-200 hover:bg-gray-50">
-                                <td className="py-2 px-3 text-left">{scenario.description}</td>
-                                <td className="py-2 px-3 text-right">{formatNumber(scenario.sharesPerDay, 0)}</td>
+                                <td className="py-2 px-3 text-left">{scenario.description}</td><td className="py-2 px-3 text-right">{formatNumber(scenario.sharesPerDay, 0)}</td>
                                 <td className="py-2 px-3 text-right">{formatNumber(scenario.finalBenchmark, 4)}</td>
-                                <td className={`py-2 px-3 text-right ${scenario.priceVsBenchmarkPct !== null && scenario.priceVsBenchmarkPct >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                    {formatNumber(scenario.priceVsBenchmarkPct, 2)}%
-                                </td>
-                                <td className={`py-2 px-3 text-right ${scenario.finalPL !== null && scenario.finalPL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                    {formatCurrency(scenario.finalPL)}
-                                </td>
-                                <td className={`py-2 px-3 text-right ${scenario.finalPLBps !== null && scenario.finalPLBps >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                    {formatNumber(scenario.finalPLBps, 2)}
-                                </td>
+                                <td className={`py-2 px-3 text-right ${scenario.priceVsBenchmarkPct !== null && scenario.priceVsBenchmarkPct >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatNumber(scenario.priceVsBenchmarkPct, 2)}%</td>
+                                <td className={`py-2 px-3 text-right ${scenario.finalPL !== null && scenario.finalPL >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(scenario.finalPL)}</td>
+                                <td className={`py-2 px-3 text-right ${scenario.finalPLBps !== null && scenario.finalPLBps >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatNumber(scenario.finalPLBps, 2)}</td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
             </div>
-        ) : (
-             (simInputPrice && simInputShares && simInputDays && parseFloat(simInputPrice)>0 && parseFloat(simInputShares)>0 && parseInt(simInputDays,10)>0) && 
-             <p className="text-gray-500 mt-4">入力に基づいてシナリオを生成します...</p>
-        )}
+        ) : ((simInputPrice && simInputShares && simInputDays && parseFloat(simInputPrice)>0 && parseFloat(simInputShares)>0 && parseInt(simInputDays,10)>0) && <p className="text-gray-500 mt-4">入力に基づいてシナリオを生成します...</p>)}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <ProgressBarDetail
-            label="経過日数進捗" progress={project.daysProgress}
-            valueText={`(取引 ${project.tradedDaysCount || 0}日 / 全 ${project.Business_Days || 'N/A'}営業日)`} color="bg-sky-500" />
-        <ProgressBarDetail
-            label="約定進捗" progress={project.executionProgress}
-            valueText={(typeof project.Total_Shares === 'number' && project.Total_Shares > 0) ? `(${formatNumber(project.totalFilledQty,0)} / ${formatNumber(project.Total_Shares,0)} 株)` : (typeof project.Total_Amount === 'number' && project.Total_Amount > 0) ? `(${formatCurrency(project.totalFilledAmount)} / ${formatCurrency(project.Total_Amount)})` : (project.totalFilledQty !== undefined && project.totalFilledAmount !== undefined) ? `(${formatNumber(project.totalFilledQty,0)}株 / ${formatCurrency(project.totalFilledAmount)})` : 'N/A'}
-            color={project.Side === 'BUY' ? 'bg-green-500' : 'bg-red-500'} />
+        <ProgressBarDetail label="経過日数進捗" progress={project.daysProgress} valueText={`(取引 ${project.tradedDaysCount || 0}日 / 全 ${project.Business_Days || 'N/A'}営業日)`} color="bg-sky-500" />
+        <ProgressBarDetail label="約定進捗" progress={project.executionProgress} valueText={(typeof project.Total_Shares === 'number' && project.Total_Shares > 0) ? `(${formatNumber(project.totalFilledQty,0)} / ${formatNumber(project.Total_Shares,0)} 株)` : (typeof project.Total_Amount === 'number' && project.Total_Amount > 0) ? `(${formatCurrency(project.totalFilledAmount)} / ${formatCurrency(project.Total_Amount)})` : (project.totalFilledQty !== undefined && project.totalFilledAmount !== undefined) ? `(${formatNumber(project.totalFilledQty,0)}株 / ${formatCurrency(project.totalFilledAmount)})` : 'N/A'} color={project.Side === 'BUY' ? 'bg-green-500' : 'bg-red-500'} />
       </div>
 
       <div className="bg-white shadow-lg rounded-lg p-6">
@@ -513,12 +476,9 @@ const ProjectDetailPage = () => {
         {project.tradedDaysCount && project.tradedDaysCount > 0 ? (<p className="text-xs text-gray-500 mt-3 text-center">※ 日次平均指標は取引のあった {project.tradedDaysCount} 日間の平均です。</p>) : (<p className="text-xs text-gray-500 mt-3 text-center">※ 取引記録がないため、一部指標は計算できません。</p>)}
       </div>
       
-      {((stockRecordsForChartAndCumulativeCalcs && stockRecordsForChartAndCumulativeCalcs.length > 0) || 
-        (simInputPrice !== '' && !isNaN(parseFloat(simInputPrice))) || 
-        (simInputShares !== '' && !isNaN(parseFloat(simInputShares)) && parseFloat(simInputShares) !== 0)
-       ) ? (
+      {((stockRecords && stockRecords.length > 0) || (simInputPrice !== '' && !isNaN(parseFloat(simInputPrice))) || (simInputShares !== '' && !isNaN(parseFloat(simInputShares)) && parseFloat(simInputShares) !== 0)) ? (
         <div className="bg-white shadow-md rounded-lg p-4 md:p-6">
-            <div style={{ height: '400px', width: '100%' }}>
+            <div className="w-full" style={{ height: '400px' }}>
                 <Chart type='line' data={finalChartData} options={chartOptions} />
             </div>
         </div>
