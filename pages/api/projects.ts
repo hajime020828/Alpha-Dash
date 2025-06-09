@@ -1,6 +1,6 @@
 // pages/api/projects.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getDb, Project, ProjectWithProgress } from '@/lib/db'; // Path alias を使用
+import { getDb, Project, ProjectWithProgress } from '@/lib/db';
 
 interface AggregatedStockData {
   ProjectID: string;
@@ -41,28 +41,27 @@ export default async function handler(
       let daysProgress = 0;
       if (p.Business_Days && p.Business_Days > 0) {
         daysProgress = (currentTradedDaysCount / p.Business_Days) * 100;
-        daysProgress = Math.min(100, daysProgress); 
       }
 
       let executionProgress = 0;
-      let currentTotalFilledQty: number | undefined = undefined;
-      let currentTotalFilledAmount: number | undefined = undefined;
+      const currentTotalFilledQty = projectStockData?.totalFilledQty || 0;
+      const currentTotalFilledAmount = projectStockData?.totalFilledAmount || 0;
 
-      if (projectStockData) {
-        currentTotalFilledQty = projectStockData.totalFilledQty || 0; 
-        currentTotalFilledAmount = projectStockData.totalFilledAmount || 0;
-
-        if (p.Side === 'SELL' && p.Total_Shares && p.Total_Shares > 0) {
+      // ▼▼▼ ここから変更箇所 ▼▼▼
+      // 総株数が設定されていれば、それを基準に計算
+      if (p.Total_Shares !== null && p.Total_Shares > 0) {
           executionProgress = (currentTotalFilledQty / p.Total_Shares) * 100;
-        } else if (p.Side === 'BUY' && p.Total_Amount && p.Total_Amount > 0) {
+      } 
+      // 総株数がなく、総金額が設定されていれば、それを基準に計算
+      else if (p.Total_Amount !== null && p.Total_Amount > 0) {
           executionProgress = (currentTotalFilledAmount / p.Total_Amount) * 100;
-        }
       }
+      // ▲▲▲ ここまで変更箇所 ▲▲▲
       
       return {
         ...p,
-        daysProgress: parseFloat(daysProgress.toFixed(2)),
-        executionProgress: parseFloat(executionProgress.toFixed(2)),
+        daysProgress: Math.min(100, Math.max(0, daysProgress)),
+        executionProgress: Math.min(100, Math.max(0, executionProgress)),
         totalFilledQty: currentTotalFilledQty,
         totalFilledAmount: currentTotalFilledAmount,
         tradedDaysCount: currentTradedDaysCount,

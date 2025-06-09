@@ -80,6 +80,8 @@ def get_reference_data(tickers, fields):
                         # fieldData
                         field_data = security_data.getElement("fieldData")
                         for field in fields:
+                            # 常にrowにキーが存在するようにNoneで初期化
+                            row[field] = None
                             if field_data.hasElement(field):
                                 try:
                                     row[field] = field_data.getElementAsFloat(field)
@@ -87,9 +89,7 @@ def get_reference_data(tickers, fields):
                                     try:
                                         row[field] = field_data.getElementAsString(field)
                                     except Exception:
-                                        row[field] = None
-                            else:
-                                row[field] = None
+                                        pass # Noneのまま
                         data.append(row)
                 done = ev.eventType() == blpapi.Event.RESPONSE
 
@@ -106,10 +106,13 @@ def get_reference_data(tickers, fields):
 def reference_data_api():
     """
     例:
-    /api/reference_data?ticker=7203.JT,MSFT&fields=PX_LAST,ALL_DAY_VWAP
+    /api/reference_data?ticker=7203.T,MSFT&fields=PX_LAST,ALL_DAY_VWAP
     """
     tickers_param = request.args.get('ticker')
-    fields_param = request.args.get('fields', 'PX_LAST')  # デフォルトPX_LAST
+    # ▼▼▼ 変更箇所 ▼▼▼
+    # fieldsパラメータのデフォルト値を 'PX_LAST' から 'PX_LAST,ALL_DAY_VWAP' に変更
+    fields_param = request.args.get('fields', 'PX_LAST,ALL_DAY_VWAP') 
+    # ▲▲▲ 変更箇所 ▲▲▲
 
     if not tickers_param:
         return jsonify({"error": "ticker parameter is required"}), 400
@@ -118,28 +121,31 @@ def reference_data_api():
     tickers = []
     for t in tickers_param.split(','):
         t = t.strip()
-        # ティッカー形式変換
+        # ティッカー形式変換 (より堅牢に)
         if t.isnumeric():
             tickers.append(f"{t} JT EQUITY")
         elif '.' in t:
             parts = t.split('.')
             code = parts[0]
             market_suffix = parts[1].upper() if len(parts) > 1 else ""
-            if market_suffix == "T":
+            if market_suffix in ("T", "JT"):
                 tickers.append(f"{code} JT EQUITY")
             else:
-                tickers.append(f"{code} EQUITY")
+                tickers.append(f"{code} {market_suffix} EQUITY")
         else:
+            # デフォルトは米国株として扱う
             tickers.append(f"{t.upper()} US EQUITY")
+            
     fields = [f.strip() for f in fields_param.split(',') if f.strip()]
 
     results, error = get_reference_data(tickers, fields)
 
-    if results is not None and len(results) > 0 and not error:
+    if results:
         return jsonify(results)
     else:
         error_msg_to_return = error or f"Could not retrieve reference data for ticker(s) {tickers_param}"
-        return jsonify({"error": error_msg_to_return}), 404
+        return jsonify({"error": error_msg_to_return}), 500
 
 if __name__ == '__main__':
+    # Flaskのデフォルトは'127.0.0.1'なので、外部からアクセスできるように'0.0.0.0'を指定
     app.run(host='0.0.0.0', port=5001, debug=False)

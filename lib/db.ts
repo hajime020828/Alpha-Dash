@@ -48,6 +48,7 @@ export interface StockRecord {
   cumulativeFilledAmount: number | null; 
   cumulativeFilledQty: number | null; 
   dailyPL: number | null; // 日次評価P/L (ベンチマークとして cumulativeBenchmarkVWAP を使用)
+  cumulativeFixedFee: number | null; // 累積の固定手数料
 }
 
 export interface ProjectWithProgress extends Project {
@@ -59,7 +60,17 @@ export interface ProjectWithProgress extends Project {
   benchmarkVWAP: number | null; // パフォーマンス指標に表示するプロジェクト全体のベンチマークVWAP
   averageExecutionPrice: number | null;
   averageDailyShares: number | null;
-  // projectPL は削除済み
+}
+
+export interface ProjectDetailApiResponse {
+  project: ProjectWithProgress | undefined;
+  stockRecords: StockRecord[];
+  // ▼▼▼ ここから変更箇所 ▼▼▼
+  finalPL: number | null;
+  finalPerformanceFee: number | null;
+  finalFixedFee: number | null;
+  finalPLBps: number | null;
+  // ▲▲▲ ここまで変更箇所 ▲▲▲
 }
 
 export interface ProjectDetailApiResponse {
