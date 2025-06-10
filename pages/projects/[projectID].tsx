@@ -72,7 +72,7 @@ const ProjectDetailPage = () => {
 
   const [simInputPrice, setSimInputPrice] = useState<string>('');
   const [simInputShares, setSimInputShares] = useState<string>('');
-  const [simInputDays, setSimInputDays] = useState<string>('5');
+  const [simInputDays, setSimInputDays] = useState<string>('1');
   
   const [slopeInput, setSlopeInput] = useState<string>(''); // ★ 傾き入力用のstate
 
@@ -253,7 +253,7 @@ const ProjectDetailPage = () => {
     const finalPLBps = calculatePLInBasisPoints(finalPL, finalBenchmark, scenarioCumulativeShares);
     const priceVsBenchmarkPct = calculatePriceVsBenchmarkPct(futurePrice, finalBenchmark);
     return {
-      days: futureDaysTarget, description: `${futureDaysTarget}日間完了`, sharesPerDay: sharesPerDay,
+      days: futureDaysTarget, description: `${futureDaysTarget}日で終了`, sharesPerDay: sharesPerDay,
       finalBenchmark: finalBenchmark, finalPL: finalPL, finalPLBps: finalPLBps, priceVsBenchmarkPct: priceVsBenchmarkPct,
     };
   }, [calculatePLInBasisPoints, calculatePriceVsBenchmarkPct]);
@@ -634,23 +634,23 @@ const ProjectDetailPage = () => {
           <p><strong>総株数:</strong> {formatNumber(displayTotalShares, 0) ?? 'N/A'} 株</p>
           <p><strong>総金額:</strong> {formatCurrency(displayTotalAmount) ?? 'N/A'}</p>
           <p><strong>開始日:</strong> {project.Start_Date}</p> <p><strong>終了日:</strong> {project.End_Date}</p>
-          <p><strong>価格制限:</strong> {formatNumber(project.Price_Limit, 0) ?? 'N/A'}</p> <p><strong>業績連動手数料率:</strong> {project.Performance_Based_Fee_Rate ?? 'N/A'}%</p>
-          <p><strong>固定手数料率:</strong> {project.Fixed_Fee_Rate ?? 'N/A'}%</p> <p><strong>営業日数 (Business Days):</strong> {project.Business_Days ?? 'N/A'}</p>
-          <p><strong>最短日数カウント:</strong> {project.Earliest_Day_Count ?? 'N/A'}</p> <p><strong>除外日数:</strong> {formatNumber(project.Excluded_Days, 0) ?? 'N/A'}</p> 
+          <p><strong>価格制限:</strong> {formatNumber(project.Price_Limit, 0) ?? 'N/A'}</p> <p><strong>成功報酬:</strong> {project.Performance_Based_Fee_Rate ?? 'N/A'}%</p>
+          <p><strong>固定手数料率:</strong> {project.Fixed_Fee_Rate ?? 'N/A'}%</p> <p><strong>営業日数:</strong> {project.Business_Days ?? 'N/A'}</p>
+          <p><strong>最短日数カウント:</strong> {project.Earliest_Day_Count ?? 'N/A'}</p>
           <p><strong>最大株数/日 (目安):</strong> {maxSharesPerDayText}</p> <p><strong>最小株数/日 (目安):</strong> {minSharesPerDayText}</p>
           <p><strong>現在の株価:</strong> {marketPriceLoading ? <span className="text-gray-500">読み込み中...</span> : currentMarketPrice !== null ? formatNumber(currentMarketPrice, 2) : marketPriceError ? <span className="text-red-500">取得エラー</span> : 'N/A'}</p>
           <p><strong>現在のVWAP:</strong> {marketPriceLoading ? <span className="text-gray-500">読み込み中...</span> : currentAllDayVWAP !== null ? formatNumber(currentAllDayVWAP, 2) : marketPriceError ? <span className="text-red-500">取得エラー</span> : 'N/A'}</p>
-          <p><strong>対調整後ベンチマーク乖離率:</strong> {marketPriceLoading ? <span className="text-xs text-gray-500">計算中...</span> : (currentMarketPrice === null || currentAllDayVWAP === null) ? <span className="text-xs text-gray-500">価格未取得</span> : priceToAdjustedBenchmarkDeviation === null ? <span className="text-xs text-gray-500">計算不可</span> : <span className={`font-semibold ${priceToAdjustedBenchmarkDeviation >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatNumber(priceToAdjustedBenchmarkDeviation, 2)} %</span>}</p>
+          <p><strong>ベンチマーク乖離率:</strong> {marketPriceLoading ? <span className="text-xs text-gray-500">計算中...</span> : (currentMarketPrice === null || currentAllDayVWAP === null) ? <span className="text-xs text-gray-500">価格未取得</span> : priceToAdjustedBenchmarkDeviation === null ? <span className="text-xs text-gray-500">計算不可</span> : <span className={`font-semibold ${priceToAdjustedBenchmarkDeviation >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatNumber(priceToAdjustedBenchmarkDeviation, 2)} %</span>}</p>
           <p className="md:col-span-2"><strong>メモ:</strong> {project.Note || 'N/A'}</p>
         </div>
         {canCalculateBreakdown && (
             <div className="mt-4 pt-4 border-t border-gray-200">
                 <button onClick={() => setIsDailyBreakdownVisible(!isDailyBreakdownVisible)} className="text-sm text-indigo-600 hover:text-indigo-800 focus:outline-none mb-2">
-                    {isDailyBreakdownVisible ? '日毎の株数目安を隠す' : '日毎の株数目安を表示'} {isDailyBreakdownVisible ? '▲' : '▼'}
+                    {isDailyBreakdownVisible ? '株数/日 目安---隠す' : '株数/日 目安---表示'} {isDailyBreakdownVisible ? '▲' : '▼'}
                 </button>
                 {isDailyBreakdownVisible && (
                     <div className="p-3 border rounded-md bg-gray-50 text-xs max-h-48 overflow-y-auto">
-                        {dailySharesBreakdown.length > 0 ? (<ul className="space-y-1">{dailySharesBreakdown.map(item => (<li key={item.dayCount}>{item.dayCount}日間で消化する場合: 約 {formatNumber(item.sharesPerDay, 0)} 株/日</li>))}</ul>) 
+                        {dailySharesBreakdown.length > 0 ? (<ul className="space-y-1">{dailySharesBreakdown.map(item => (<li key={item.dayCount}>{item.dayCount}日: {formatNumber(item.sharesPerDay, 0)} 株/日</li>))}</ul>) 
                         : (<p className="text-gray-500">表示できる日毎の目安がありません。</p>)}
                     </div>
                 )}
@@ -659,7 +659,7 @@ const ProjectDetailPage = () => {
       </div>
       
       <div className="bg-white shadow-md rounded-lg p-6">
-        <h2 className="text-xl font-semibold mb-4 text-gray-700">プロジェクトサマリー</h2>
+        <h2 className="text-xl font-semibold mb-4 text-gray-700">プロジェクトサマリー(前営業日時点)</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-8 text-center">
             
             <div>
@@ -713,7 +713,7 @@ const ProjectDetailPage = () => {
             </div>
 
             <div>
-                <p className="text-sm text-gray-500">最短完了まで(残日数)</p>
+                <p className="text-sm text-gray-500">最短まで(残日数)</p>
                 <p className="text-3xl font-bold text-purple-600">
                     {daysUntilEarliest !== null ? `${Math.max(0, daysUntilEarliest)}` : 'N/A'}
                     <span className="text-xl ml-1">日</span>
@@ -738,16 +738,12 @@ const ProjectDetailPage = () => {
                 </p>
             </div>
         </div>
-        {project.tradedDaysCount && project.tradedDaysCount > 0 ? (
-            <p className="text-xs text-gray-500 mt-6 text-center">※ 日次平均指標は取引のあった {project.tradedDaysCount} 日間の平均です。</p>
-        ) : (
-            <p className="text-xs text-gray-500 mt-6 text-center">※ 取引記録がないため、一部指標は計算できません。</p>
-        )}
+        
       </div>
       
       {finalMetrics && (
         <div className="bg-white shadow-md rounded-lg p-6">
-          <h2 className="text-xl font-semibold mb-4 text-gray-700">最終損益・手数料 (累計)</h2>
+          <h2 className="text-xl font-semibold mb-4 text-gray-700">損益・手数料 (前営業日時点)</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-8 text-center">
             <div>
               <p className="text-sm text-gray-500">P/L (評価損益)</p>
@@ -778,16 +774,16 @@ const ProjectDetailPage = () => {
       )}
       
       <div className="bg-white shadow-md rounded-lg p-6">
-        <h2 className="text-xl font-semibold text-gray-700 mb-4 border-b pb-2">シミュレーション &amp; 将来シナリオ分析</h2>
+        <h2 className="text-xl font-semibold text-gray-700 mb-4 border-b pb-2">P/L シミュレーション</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 items-end">
             <div>
-                <label htmlFor="simInputPrice" className="block text-sm font-medium text-gray-700">取引価格 (固定)</label>
+                <label htmlFor="simInputPrice" className="block text-sm font-medium text-gray-700">価格</label>
                 <input type="number" name="simInputPrice" id="simInputPrice" value={simInputPrice} onChange={(e) => setSimInputPrice(e.target.value)}
                        onWheel={ e => (e.target as HTMLElement).blur() }
                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="例: 101.0"/>
             </div>
             <div>
-                <label htmlFor="simInputShares" className="block text-sm font-medium text-gray-700">対象株数</label>
+                <label htmlFor="simInputShares" className="block text-sm font-medium text-gray-700">株数</label>
                 <input type="number" name="simInputShares" id="simInputShares" value={simInputShares} onChange={(e) => setSimInputShares(e.target.value)}
                        onWheel={ e => (e.target as HTMLElement).blur() }
                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="例: 10000"/>
@@ -802,7 +798,7 @@ const ProjectDetailPage = () => {
         
         {futureScenarios.length > 0 && (
             <div className="overflow-x-auto">
-                <h3 className="text-md font-medium text-gray-700 mb-2">完了日数別シナリオ (入力した<span className="font-bold">対象株数</span>をN日間で消化)</h3>
+                <h3 className="text-md font-medium text-gray-700 mb-2">終了日数別シナリオ (入力した<span className="font-bold">株数</span>をN日間で消化)</h3>
                 <table className="min-w-full leading-normal text-sm">
                     <thead>
                         <tr className="bg-gray-100 text-gray-600 uppercase text-xs leading-normal">
@@ -827,7 +823,7 @@ const ProjectDetailPage = () => {
         
         {fixedVolumeScenarios.length > 0 && (
             <div className="overflow-x-auto mt-8">
-                <h3 className="text-md font-medium text-gray-700 mb-2">日数別シナリオ (入力した<span className="font-bold">対象株数</span>を毎日N日間取引)</h3>
+                <h3 className="text-md font-medium text-gray-700 mb-2">日数別シナリオ (入力した<span className="font-bold">株数</span>を毎日N日間取引)</h3>
                 <table className="min-w-full leading-normal text-sm">
                     <thead>
                         <tr className="bg-gray-100 text-gray-600 uppercase text-xs leading-normal">
